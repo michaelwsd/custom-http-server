@@ -73,15 +73,16 @@ public class Main {
             String dir = args[0];
             String fileName = path.substring("/files/".length());
 
-            Path p = Path.of(dir, fileName);
+            File p = new File(dir, fileName);
             System.out.println(p.toString());
-            System.out.println(Files.exists(p));
+            System.out.println(p.exists());
 
-            if (!Files.exists(p) || fileName.isEmpty()) {
+            if (!p.exists() || fileName.isEmpty()) {
               headers = CRLF;
               statusLine = NF;
             } else {
-              body = Files.readString(p);
+              byte[] content = Files.readAllBytes(p.toPath());
+              body = new String(content);
               headers = "Content-Type: application/octet-stream" + CRLF + "Content-Length: " + body.length() + CRLF.repeat(2);
             }
         } else {
