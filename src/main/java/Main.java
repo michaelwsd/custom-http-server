@@ -9,6 +9,7 @@ import java.net.Socket;
 
 public class Main {
   private static int PORT = 4221;
+  private static String CRLF = "\r\n";
 
   public static void main(String[] args) {
     clearScreen();
@@ -43,18 +44,25 @@ public class Main {
 
       // parse path
       String path = requestMessage.split("\\s+")[1];
-      String RESPONSE = path.equals("/") ? "200 OK" : "404 Not Found"; 
+      String RESPONSE = path.equals("/") || path.startsWith("/echo/") ? "200 OK" : "404 Not Found"; 
+
+      // build response
+      String statusLine = "HTTP/1.1 " + RESPONSE + CRLF.repeat(2);
+      
+      // build header 
+      String content = path.split("/")[2];
+      String responseHeader = "Content-Type: text/plain" + CRLF + "Content-Length: " + content.length() + CRLF.repeat(2) + content;
+      responseMessage = statusLine + responseHeader;
 
       // writing to socket
-      responseMessage = "HTTP/1.1 " + RESPONSE + "\r\n\r\n";
       out.println(responseMessage);
-      System.out.println("Message sent to the client: " + responseMessage);
+      System.out.println("Message sent to the client:\n" + responseMessage);
 
       clientSocket.close();
 
     } catch (IOException e) {
       System.out.println("IOException: " + e.getMessage());
-      
+
     }
   }
 
