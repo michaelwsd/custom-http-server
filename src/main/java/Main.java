@@ -52,7 +52,7 @@ public class Main {
       } else if (path.startsWith("/echo/")) {
         statusLine = "HTTP/1.1 200 OK" + CRLF;
       } else {
-        statusLine = "HTTP/1.1 404 Not Found" + CRLF;
+        statusLine = "HTTP/1.1 404 Not Found" + CRLF.repeat(2);
       }
       
       // build header 
