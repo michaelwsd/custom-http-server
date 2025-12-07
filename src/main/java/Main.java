@@ -1,6 +1,8 @@
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 public class Main {
     private static final int PORT = 4221;
@@ -53,19 +55,31 @@ public class Main {
         boolean valid = (path.equals("/") || 
                          path.startsWith("/echo/") || 
                          path.startsWith("/user-agent"));
+        String OK = "HTTP/1.1 200 OK" + CRLF, NF = "HTTP/1.1 404 Not Found" + CRLF;
 
         // response construction
-        String statusLine = (valid ? "HTTP/1.1 200 OK" : "HTTP/1.1 404 Not Found") + CRLF;
+        String statusLine = valid ? OK : NF;
         String headers = "Content-Type: text/plain" + CRLF;
         String body = "";
 
         if (path.startsWith("/echo/")) {
             String[] parts = path.split("/");
             body = parts.length > 2 ? parts[2] : "";
-            headers += "Content-Length: " + body.length() + CRLF.repeat(2);
+            headers = "Content-Type: text/plain" + CRLF + "Content-Length: " + body.length() + CRLF.repeat(2);
         } else if (path.startsWith("/user-agent")) {
             body = userAgent;
-            headers += "Content-Length: " + body.length() + CRLF.repeat(2);
+            headers = "Content-Type: text/plain" + CRLF + "Content-Length: " + body.length() + CRLF.repeat(2);
+        } else if (path.startsWith("/files/")) {
+            String fileName = path.substring("/files/".length());
+
+            Path p = Path.of(fileName);
+            if (!Files.exists(p) || fileName.isEmpty()) {
+              headers = CRLF;
+              statusLine = NF;
+            } else {
+              body = Files.readString(p);
+              headers = "Content-Type: application/octet-stream" + CRLF + "Content-Length: " + body.length() + CRLF.repeat(2);
+            }
         } else {
             headers = CRLF; 
         }
@@ -74,7 +88,8 @@ public class Main {
         String response = statusLine + headers + body;
 
         // send response
-        out.println(response);
+        out.write(response);
+        out.flush();
         System.out.println("Sent response:\n" + response);
 
       } catch (IOException e) {
