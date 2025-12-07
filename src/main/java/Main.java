@@ -1,8 +1,6 @@
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.ArrayList;
-import java.util.List;
 
 public class Main {
     private static final int PORT = 4221;
@@ -34,43 +32,35 @@ public class Main {
                         continue;
                     }
 
-                    // read and ignore headers
+                    // read headers
                     String headerLine;
                     String userAgent = "";
-                    List<String> headerLines = new ArrayList<>();
                     while ((headerLine = in.readLine()) != null && !headerLine.isEmpty()) {
-                      headerLines.add(headerLine);
                       if (headerLine.toLowerCase().startsWith("user-agent:")) {
                         userAgent = headerLine.substring("user-agent:".length()).trim();
                       }  
                     }
 
-                    System.out.println(headerLines);
-
                     // parse path
-                    String[] requestParts = requestLine.split("\\s+");
-                    String path = requestParts.length > 1 ? requestParts[1] : "/";
-                    String statusLine;
+                    String path = requestLine.split("\\s+")[1];
+                    boolean valid = path.equals("/") || path.startsWith("/echo/") || path.startsWith("/user-agent");
+
+                    // response construction
+                    String statusLine = (valid ? "HTTP/1.1 200 OK" : "HTTP/1.1 404 Not Found") + CRLF;
                     String headers = "";
                     String body = "";
 
-                    if (path.equals("/")) {
-                        statusLine = "HTTP/1.1 200 OK" + CRLF;
-                        headers = CRLF; // empty headers
-                    } else if (path.startsWith("/echo/")) {
+                    if (path.startsWith("/echo/")) {
                         String[] parts = path.split("/");
                         body = parts.length > 2 ? parts[2] : "";
-                        statusLine = "HTTP/1.1 200 OK" + CRLF;
                         headers = "Content-Type: text/plain" + CRLF +
                                   "Content-Length: " + body.length() + CRLF + CRLF;
                     } else if (path.startsWith("/user-agent")) {
                         body = userAgent;
-                        statusLine = "HTTP/1.1 200 OK" + CRLF;
                         headers = "Content-Type: text/plain" + CRLF +
                                   "Content-Length: " + body.length() + CRLF + CRLF;
                     } else {
-                        statusLine = "HTTP/1.1 404 Not Found" + CRLF;
-                        headers = CRLF; // empty headers
+                        headers = CRLF; 
                     }
 
                     // build response
