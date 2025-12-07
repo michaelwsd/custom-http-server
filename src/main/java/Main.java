@@ -44,10 +44,16 @@ public class Main {
 
       // parse path
       String path = requestMessage.split("\\s+")[1];
-      String RESPONSE = path.equals("/") || path.startsWith("/echo/") ? "200 OK" : "404 Not Found"; 
+      String statusLine;
 
       // build response
-      String statusLine = "HTTP/1.1 " + RESPONSE + CRLF.repeat(2);
+      if (path.equals("/")) {
+        statusLine = "HTTP/1.1 200 OK" + CRLF.repeat(2);
+      } else if (path.startsWith("/echo/")) {
+        statusLine = "HTTP/1.1 200 OK" + CRLF;
+      } else {
+        statusLine = "HTTP/1.1 404 Not Found" + CRLF;
+      }
       
       // build header 
       String content = path.split("/")[2];
