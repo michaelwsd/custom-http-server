@@ -1,79 +1,97 @@
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.OutputStream;
-import java.io.PrintWriter;
+import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.ArrayList;
+import java.util.List;
 
 public class Main {
-  private static int PORT = 4221;
-  private static String CRLF = "\r\n";
+    private static final int PORT = 4221;
+    private static final String CRLF = "\r\n";
 
-  public static void main(String[] args) {
-    clearScreen();
+    public static void main(String[] args) {
+        clearScreen();
 
-    try {
-      System.out.println("Server listening on port " + PORT);
+        try (ServerSocket serverSocket = new ServerSocket(PORT)) {
+            serverSocket.setReuseAddress(true);
+            System.out.println("Server listening on port " + PORT);
 
-      // create a new server, bind to port and start listening for connections
-      ServerSocket serverSocket = new ServerSocket(PORT);
-    
-      // if the program restarts quickly, allow it to bind to the same port again
-      serverSocket.setReuseAddress(true);
-      
-      // pause the program until a client connects
-      Socket clientSocket = serverSocket.accept(); 
-      System.out.println("Accepted new connection");
+            while (true) {
+                try (Socket clientSocket = serverSocket.accept()) {
+                    System.out.println("Accepted new connection");
 
-      // read from client (convert bytes -> characters)
-      InputStream clientInputBytes = clientSocket.getInputStream(); // get input as raw byte stream from client
-      InputStreamReader reader = new InputStreamReader(clientInputBytes); // turn raw bytes into characters (i.e. 71 = 'G' in ascii)
-      BufferedReader in = new BufferedReader(reader); // allows to read lines
+                    // input and output
+                    BufferedReader in = new BufferedReader(
+                            new InputStreamReader(clientSocket.getInputStream()) // convert byte to text
+                    );
+                    PrintWriter out = new PrintWriter(clientSocket.getOutputStream(), true); // convert text to byte
 
-      // write to client (convert characters -> bytes)
-      OutputStream clientOutputBytes = clientSocket.getOutputStream(); // how program sends data to client
-      PrintWriter out = new PrintWriter(clientOutputBytes, true); // true to auto flush (receive immediately after print called)
+                    // read request line
+                    String requestLine = in.readLine();
+                    System.out.println("Received request: " + requestLine);
 
-      String requestMessage, responseMessage;
+                    if (requestLine == null || requestLine.isEmpty()) {
+                        clientSocket.close();
+                        continue;
+                    }
 
-      // read from socket
-      requestMessage = in.readLine();
-      System.out.println("The received message from the client: " + requestMessage);
+                    // read and ignore headers
+                    String headerLine;
+                    String userAgent = "";
+                    List<String> headerLines = new ArrayList<>();
+                    while ((headerLine = in.readLine()) != null && !headerLine.isEmpty()) {
+                      headerLines.add(headerLine);
+                      if (headerLine.toLowerCase().startsWith("user-agent:")) {
+                        userAgent = headerLine.substring("user-agent:".length()).trim();
+                      }  
+                    }
 
-      // parse path
-      String path = requestMessage.split("\\s+")[1];
-      String statusLine, responseHeader = "";
+                    System.out.println(headerLines);
 
-      // build response
-      if (path.equals("/")) {
-        statusLine = "HTTP/1.1 200 OK" + CRLF.repeat(2);
-      } else if (path.startsWith("/echo/")) {
-        statusLine = "HTTP/1.1 200 OK" + CRLF;
-        String content = path.split("/")[2];
-        responseHeader = "Content-Type: text/plain" + CRLF + "Content-Length: " + content.length() + CRLF.repeat(2) + content;
-      } else {
-        statusLine = "HTTP/1.1 404 Not Found" + CRLF.repeat(2);
-      }
-      
-      // build header 
-      responseMessage = statusLine + responseHeader;
+                    // parse path
+                    String[] requestParts = requestLine.split("\\s+");
+                    String path = requestParts.length > 1 ? requestParts[1] : "/";
+                    String statusLine;
+                    String headers = "";
+                    String body = "";
 
-      // writing to socket
-      out.println(responseMessage);
-      System.out.println("Message sent to the client:\n" + responseMessage);
+                    if (path.equals("/")) {
+                        statusLine = "HTTP/1.1 200 OK" + CRLF;
+                        headers = CRLF; // empty headers
+                    } else if (path.startsWith("/echo/")) {
+                        String[] parts = path.split("/");
+                        body = parts.length > 2 ? parts[2] : "";
+                        statusLine = "HTTP/1.1 200 OK" + CRLF;
+                        headers = "Content-Type: text/plain" + CRLF +
+                                  "Content-Length: " + body.length() + CRLF + CRLF;
+                    } else if (path.startsWith("/user-agent")) {
+                        body = userAgent;
+                        statusLine = "HTTP/1.1 200 OK" + CRLF;
+                        headers = "Content-Type: text/plain" + CRLF +
+                                  "Content-Length: " + body.length() + CRLF + CRLF;
+                    } else {
+                        statusLine = "HTTP/1.1 404 Not Found" + CRLF;
+                        headers = CRLF; // empty headers
+                    }
 
-      clientSocket.close();
+                    // build response
+                    String response = statusLine + headers + body;
 
-    } catch (IOException e) {
-      System.out.println("IOException: " + e.getMessage());
+                    // send response
+                    out.println(response);
+                    System.out.println("Sent response:\n" + response);
 
+                } catch (IOException e) {
+                    System.out.println("Client connection error: " + e.getMessage());
+                }
+            }
+
+        } catch (IOException e) {
+            System.out.println("Server error: " + e.getMessage());
+        }
     }
-  }
 
-  public static void clearScreen() {
-    System.out.print("\033[H\033[2J");
-    System.out.flush(); 
-  }
+    public static void clearScreen() {
+        System.out.print("\033[H\033[2J");
+        System.out.flush();
+    }
 }
