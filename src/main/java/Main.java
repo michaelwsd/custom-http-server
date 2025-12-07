@@ -18,7 +18,7 @@ public class Main {
             while (true) {
                 Socket clientSocket = serverSocket.accept();
                 System.out.println("Accepted new connection");
-                new Thread(() -> handleClient(clientSocket)).start(); // each client is ran in a new thread
+                new Thread(() -> handleClient(clientSocket, args)).start(); // each client is ran in a new thread
             }
 
         } catch (IOException e) {
@@ -26,7 +26,7 @@ public class Main {
         }
     }
 
-    public static void handleClient(Socket clientSocket) {
+    public static void handleClient(Socket clientSocket, String[] args) {
       try (clientSocket) { // automatically closes socket
         // input and output
         BufferedReader in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream())); // convert byte to text
@@ -70,9 +70,13 @@ public class Main {
             body = userAgent;
             headers = "Content-Type: text/plain" + CRLF + "Content-Length: " + body.length() + CRLF.repeat(2);
         } else if (path.startsWith("/files/")) {
+            String dir = args[0];
             String fileName = path.substring("/files/".length());
 
-            Path p = Path.of(fileName);
+            Path p = Path.of(dir, fileName);
+            System.out.println(p.toString());
+            System.out.println(Files.exists(p));
+
             if (!Files.exists(p) || fileName.isEmpty()) {
               headers = CRLF;
               statusLine = NF;
