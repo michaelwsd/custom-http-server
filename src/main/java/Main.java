@@ -44,20 +44,20 @@ public class Main {
 
       // parse path
       String path = requestMessage.split("\\s+")[1];
-      String statusLine;
+      String statusLine, responseHeader = "";
 
       // build response
       if (path.equals("/")) {
         statusLine = "HTTP/1.1 200 OK" + CRLF.repeat(2);
       } else if (path.startsWith("/echo/")) {
         statusLine = "HTTP/1.1 200 OK" + CRLF;
+        String content = path.split("/")[2];
+        responseHeader = "Content-Type: text/plain" + CRLF + "Content-Length: " + content.length() + CRLF.repeat(2) + content;
       } else {
         statusLine = "HTTP/1.1 404 Not Found" + CRLF.repeat(2);
       }
       
       // build header 
-      String content = path.split("/")[2];
-      String responseHeader = "Content-Type: text/plain" + CRLF + "Content-Length: " + content.length() + CRLF.repeat(2) + content;
       responseMessage = statusLine + responseHeader;
 
       // writing to socket
