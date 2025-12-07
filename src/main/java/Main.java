@@ -54,7 +54,8 @@ public class Main {
         String path = requestLine.split("\\s+")[1];
         boolean valid = (path.equals("/") || 
                          path.startsWith("/echo/") || 
-                         path.startsWith("/user-agent"));
+                         path.startsWith("/user-agent") ||
+                         path.startsWith("/files/"));
         String OK = "HTTP/1.1 200 OK" + CRLF, NF = "HTTP/1.1 404 Not Found" + CRLF;
 
         // response construction
@@ -73,16 +74,15 @@ public class Main {
             String dir = args[0];
             String fileName = path.substring("/files/".length());
 
-            File p = new File(dir, fileName);
+            Path p = Path.of(dir, fileName);
             System.out.println(p.toString());
-            System.out.println(p.exists());
+            System.out.println(Files.exists(p));
 
-            if (!p.exists() || fileName.isEmpty()) {
+            if (!Files.exists(p) || fileName.isEmpty()) {
               headers = CRLF;
               statusLine = NF;
             } else {
-              byte[] content = Files.readAllBytes(p.toPath());
-              body = new String(content);
+              body = Files.readString(p);
               headers = "Content-Type: application/octet-stream" + CRLF + "Content-Length: " + body.length() + CRLF.repeat(2);
             }
         } else {
