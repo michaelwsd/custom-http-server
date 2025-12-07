@@ -71,7 +71,14 @@ public class Main {
             body = userAgent;
             headers = "Content-Type: text/plain" + CRLF + "Content-Length: " + body.length() + CRLF.repeat(2);
         } else if (path.startsWith("/files/")) {
-            String dir = args[0];
+            String dir = "";
+
+            for (int i = 0; i < args.length; i++) {
+                if (args[i].equals("--directory") && i + 1 < args.length) {
+                    dir = args[i + 1];
+                }
+            }
+            
             String fileName = path.substring("/files/".length());
 
             Path p = Path.of(dir, fileName);
