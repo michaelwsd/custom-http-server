@@ -35,118 +35,131 @@ public class Main {
         InputStream rawIn = clientSocket.getInputStream(); // read one byte at a time
         OutputStream rawOut = clientSocket.getOutputStream(); // write one byte at a time
 
-        // read request line
-        String requestLine = readLine(rawIn);
-        System.out.println("Received request: " + requestLine);
+        boolean keepAlive = true;
 
-        if (requestLine == null || requestLine.isEmpty()) {
-            clientSocket.close();
-            return;
-        }
+        while (keepAlive) {
+          // read request line
+          String requestLine = readLine(rawIn);
+          System.out.println("Received request: " + requestLine);
 
-        // read headers
-        String headerLine;
-        String userAgent = "";
-        String acceptEncoding = "";
-        int contentLength = 0;
-        while ((headerLine = readLine(rawIn)) != null && !headerLine.isEmpty()) {
-          if (headerLine.toLowerCase().startsWith("user-agent:")) {
-            userAgent = headerLine.substring("user-agent:".length()).trim();
-          }  
-          
-          if (headerLine.toLowerCase().startsWith("content-length:")) {
-            contentLength = Integer.parseInt(headerLine.split(":")[1].trim());
+          if (requestLine == null || requestLine.isEmpty()) {
+              clientSocket.close();
+              return;
           }
 
-          if (headerLine.toLowerCase().startsWith("accept-encoding:")) {
-            String[] encodings = headerLine.substring("accept-encoding:".length()).trim().split(",");
-            acceptEncoding = Arrays.stream(encodings)
-                                   .map(String::trim)
-                                   .anyMatch(enc -> enc.equalsIgnoreCase("gzip"))
-                                   ? "gzip"
-                                   : "identity";
-          }
-        }
+          // read headers
+          String headerLine;
+          String userAgent = "";
+          String acceptEncoding = "";
+          int contentLength = 0;
 
-        // parse path
-        String[] status = requestLine.split("\\s+");
-        String type = status[0], path = status[1];
-        boolean valid = (path.equals("/") || 
-                         path.startsWith("/echo/") || 
-                         path.startsWith("/user-agent") ||
-                         path.startsWith("/files/"));
-        String OK = "HTTP/1.1 200 OK" + CRLF, NF = "HTTP/1.1 404 Not Found" + CRLF, CR = "HTTP/1.1 201 Created" + CRLF;
-
-        // read request body
-        byte[] bodyBytes = rawIn.readNBytes(contentLength);
-
-        // response construction
-        String statusLine = valid ? OK : NF;
-        String headers = "";
-        String body = "";
-        byte[] compressedBody = new byte[0];
-
-        // possible headers
-        String contentTypeText = "Content-Type: text/plain" + CRLF;
-        String contentTypeOctet = "Content-Type: application/octet-stream" + CRLF;
-        String contentEncodingText = acceptEncoding.equals("gzip") ? "Content-Encoding: gzip" + CRLF : "";
-
-        if (path.startsWith("/echo/")) {
-            String[] parts = path.split("/");
-            body = parts.length > 2 ? parts[2] : "";
-            if (acceptEncoding.equals("gzip")) {
-              compressedBody = GZIPCompression(body);
-              headers = contentTypeText + contentEncodingText + "Content-Length: " + compressedBody.length + CRLF.repeat(2);
-            } else {
-              headers = contentTypeText + contentEncodingText + "Content-Length: " + body.length() + CRLF.repeat(2);
-            }
-        } else if (path.startsWith("/user-agent")) {
-            body = userAgent;
-            headers = contentTypeText + "Content-Length: " + body.length() + CRLF.repeat(2);
-        } else if (path.startsWith("/files/")) {
-            String dir = "";
-
-            for (int i = 0; i < args.length; i++) {
-                if (args[i].equals("--directory") && i + 1 < args.length) {
-                    dir = args[i + 1];
-                }
-            }
-
-            String fileName = path.substring("/files/".length());
-
-            Path p = Path.of(dir, fileName);
+          while ((headerLine = readLine(rawIn)) != null && !headerLine.isEmpty()) {
+            if (headerLine.toLowerCase().startsWith("user-agent:")) {
+              userAgent = headerLine.substring("user-agent:".length()).trim();
+            }  
             
-
-            if (type.equals("GET")) {
-              if (!Files.exists(p) || fileName.isEmpty()) {
-                headers = CRLF;
-                statusLine = NF;
-              } else {
-                body = Files.readString(p);
-                headers = contentTypeOctet + "Content-Length: " + body.length() + CRLF.repeat(2);
-              }
-            } else if (type.equals("POST")) {
-              Files.createFile(p);
-              String content = new String(bodyBytes, StandardCharsets.UTF_8);
-              Files.writeString(p, content);
-
-              // send status 
-              headers = CRLF;
-              statusLine = CR;
+            if (headerLine.toLowerCase().startsWith("content-length:")) {
+              contentLength = Integer.parseInt(headerLine.split(":")[1].trim());
             }
 
-        } else {
-            headers = CRLF; 
+            if (headerLine.toLowerCase().startsWith("accept-encoding:")) {
+              String[] encodings = headerLine.substring("accept-encoding:".length()).trim().split(",");
+              acceptEncoding = Arrays.stream(encodings)
+                                    .map(String::trim)
+                                    .anyMatch(enc -> enc.equalsIgnoreCase("gzip"))
+                                    ? "gzip"
+                                    : "identity";
+            }
+
+            if (headerLine.toLowerCase().startsWith("connection:")) {
+              if (headerLine.substring("connection:".length()).trim().equals("close")) {
+                keepAlive = false;
+              }
+            }
+          }
+
+          // parse path
+          String[] status = requestLine.split("\\s+");
+          String type = status[0], path = status[1];
+          boolean valid = (path.equals("/") || 
+                          path.startsWith("/echo/") || 
+                          path.startsWith("/user-agent") ||
+                          path.startsWith("/files/"));
+          String OK = "HTTP/1.1 200 OK" + CRLF, NF = "HTTP/1.1 404 Not Found" + CRLF, CR = "HTTP/1.1 201 Created" + CRLF;
+
+          // read request body
+          byte[] bodyBytes = new byte[0];
+          if (contentLength > 0) {
+            bodyBytes = rawIn.readNBytes(contentLength);
+          }
+
+          // response construction
+          String statusLine = valid ? OK : NF;
+          String headers = "";
+          String body = "";
+          byte[] compressedBody = new byte[0];
+
+          // possible headers
+          String contentTypeText = "Content-Type: text/plain" + CRLF;
+          String contentTypeOctet = "Content-Type: application/octet-stream" + CRLF;
+          String contentEncodingText = acceptEncoding.equals("gzip") ? "Content-Encoding: gzip" + CRLF : "";
+
+          if (path.startsWith("/echo/")) {
+              String[] parts = path.split("/");
+              body = parts.length > 2 ? parts[2] : "";
+              if (acceptEncoding.equals("gzip")) {
+                compressedBody = GZIPCompression(body);
+                headers = contentTypeText + contentEncodingText + "Content-Length: " + compressedBody.length + CRLF.repeat(2);
+              } else {
+                headers = contentTypeText + contentEncodingText + "Content-Length: " + body.length() + CRLF.repeat(2);
+              }
+          } else if (path.startsWith("/user-agent")) {
+              body = userAgent;
+              headers = contentTypeText + "Content-Length: " + body.length() + CRLF.repeat(2);
+          } else if (path.startsWith("/files/")) {
+              String dir = "";
+
+              for (int i = 0; i < args.length; i++) {
+                  if (args[i].equals("--directory") && i + 1 < args.length) {
+                      dir = args[i + 1];
+                  }
+              }
+
+              String fileName = path.substring("/files/".length());
+
+              Path p = Path.of(dir, fileName);
+
+              if (type.equals("GET")) {
+                if (!Files.exists(p) || fileName.isEmpty()) {
+                  headers = CRLF;
+                  statusLine = NF;
+                } else {
+                  body = Files.readString(p);
+                  headers = contentTypeOctet + "Content-Length: " + body.length() + CRLF.repeat(2);
+                }
+              } else if (type.equals("POST")) {
+                Files.createFile(p);
+                String content = new String(bodyBytes, StandardCharsets.UTF_8);
+                Files.writeString(p, content);
+
+                // send status 
+                headers = CRLF;
+                statusLine = CR;
+              }
+
+          } else {
+              headers = CRLF; 
+          }
+
+          // build response
+          String response = statusLine + headers;
+
+          // send response
+          rawOut.write(response.getBytes());
+          rawOut.write(acceptEncoding.equals("gzip") ? compressedBody : body.getBytes());
+          rawOut.flush();
+          System.out.println("Sent response:\n" + response);
         }
-
-        // build response
-        String response = statusLine + headers;
-
-        // send response
-        rawOut.write(response.getBytes());
-        rawOut.write(acceptEncoding.equals("gzip") ? compressedBody : body.getBytes());
-        rawOut.flush();
-        System.out.println("Sent response:\n" + response);
 
       } catch (IOException e) {
           System.out.println("Client connection error: " + e.getMessage());
