@@ -5,6 +5,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.zip.GZIPOutputStream;
 
 public class Main {
     private static final int PORT = 4221;
@@ -32,7 +33,7 @@ public class Main {
       try (clientSocket) { // automatically closes socket
         // input and output
         InputStream rawIn = clientSocket.getInputStream(); // read one byte at a time
-        PrintWriter out = new PrintWriter(clientSocket.getOutputStream(), true); // convert text to byte
+        OutputStream rawOut = clientSocket.getOutputStream(); // write one byte at a time
 
         // read request line
         String requestLine = readLine(rawIn);
@@ -83,6 +84,7 @@ public class Main {
         String statusLine = valid ? OK : NF;
         String headers = "";
         String body = "";
+        byte[] compressedBody = new byte[0];
 
         // possible headers
         String contentTypeText = "Content-Type: text/plain" + CRLF;
@@ -92,7 +94,12 @@ public class Main {
         if (path.startsWith("/echo/")) {
             String[] parts = path.split("/");
             body = parts.length > 2 ? parts[2] : "";
-            headers = contentTypeText + contentEncodingText + "Content-Length: " + body.length() + CRLF.repeat(2);
+            if (acceptEncoding.equals("gzip")) {
+              compressedBody = GZIPCompression(body);
+              headers = contentTypeText + contentEncodingText + "Content-Length: " + compressedBody.length + CRLF.repeat(2);
+            } else {
+              headers = contentTypeText + contentEncodingText + "Content-Length: " + body.length() + CRLF.repeat(2);
+            }
         } else if (path.startsWith("/user-agent")) {
             body = userAgent;
             headers = contentTypeText + "Content-Length: " + body.length() + CRLF.repeat(2);
@@ -132,11 +139,12 @@ public class Main {
         }
 
         // build response
-        String response = statusLine + headers + body;
+        String response = statusLine + headers;
 
         // send response
-        out.write(response);
-        out.flush();
+        rawOut.write(response.getBytes());
+        rawOut.write(acceptEncoding.equals("gzip") ? compressedBody : body.getBytes());
+        rawOut.flush();
         System.out.println("Sent response:\n" + response);
 
       } catch (IOException e) {
@@ -167,6 +175,28 @@ public class Main {
       // End of stream
       if (buffer.size() == 0) return null;
       return buffer.toString(StandardCharsets.UTF_8);
+    }
+
+    /**
+    * Compresses a String into a GZIP byte array using UTF-8 encoding.
+    * @param str The string to compress.
+    * @return The compressed byte array.
+    * @throws IOException If an I/O error occurs.
+    */
+    public static byte[] GZIPCompression(String str) throws IOException {
+        if (str == null || str.isEmpty()) {
+            return new byte[0];
+        }
+
+        // Use try-with-resources to ensure streams are closed automatically
+        try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
+             GZIPOutputStream gzipOut = new GZIPOutputStream(baos)) {
+            // Write the string bytes using UTF-8 encoding
+            gzipOut.write(str.getBytes(StandardCharsets.UTF_8));
+            // Closing the GZIPOutputStream is critical as it writes the GZIP trailer
+            gzipOut.close(); 
+            return baos.toByteArray();
+        }
     }
 
     public static void clearScreen() {
