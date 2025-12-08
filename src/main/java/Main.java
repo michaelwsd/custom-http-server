@@ -90,7 +90,7 @@ public class Main {
             headers = contentTypeText + contentEncodingText + "Content-Length: " + body.length() + CRLF.repeat(2);
         } else if (path.startsWith("/user-agent")) {
             body = userAgent;
-            headers = contentTypeText + contentEncodingText + "Content-Length: " + body.length() + CRLF.repeat(2);
+            headers = contentTypeText + "Content-Length: " + body.length() + CRLF.repeat(2);
         } else if (path.startsWith("/files/")) {
             String dir = "";
 
@@ -110,7 +110,7 @@ public class Main {
                 statusLine = NF;
               } else {
                 body = Files.readString(p);
-                headers = contentTypeOctet + contentEncodingText + "Content-Length: " + body.length() + CRLF.repeat(2);
+                headers = contentTypeOctet + "Content-Length: " + body.length() + CRLF.repeat(2);
               }
             } else if (type.equals("POST")) {
               Files.createFile(p);
