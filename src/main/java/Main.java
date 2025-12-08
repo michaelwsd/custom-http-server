@@ -211,7 +211,6 @@ public class Main {
             gzipOut.close(); 
             return baos.toByteArray();
         }
-        
     }
 
     public static void clearScreen() {
