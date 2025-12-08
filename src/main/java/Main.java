@@ -80,7 +80,7 @@ public class Main {
         // possible headers
         String contentTypeText = "Content-Type: text/plain" + CRLF;
         String contentTypeOctet = "Content-Type: application/octet-stream" + CRLF;
-        String contentEncodingText = (acceptEncoding.equals("gzip") ? "Content-Encoding: gzip" : "") + CRLF;
+        String contentEncodingText = acceptEncoding.equals("gzip") ? "Content-Encoding: gzip" + CRLF : "";
 
         String body = "";
 
