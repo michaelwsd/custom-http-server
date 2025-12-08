@@ -1,6 +1,7 @@
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -29,7 +30,8 @@ public class Main {
     public static void handleClient(Socket clientSocket, String[] args) {
       try (clientSocket) { // automatically closes socket
         // input and output
-        BufferedReader in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream())); // convert byte to text
+        InputStream rawIn = clientSocket.getInputStream();
+        BufferedReader in = new BufferedReader(new InputStreamReader(rawIn)); // convert byte to text
         PrintWriter out = new PrintWriter(clientSocket.getOutputStream(), true); // convert text to byte
 
         // read request line
@@ -44,19 +46,31 @@ public class Main {
         // read headers
         String headerLine;
         String userAgent = "";
+        int contentLength = 0;
         while ((headerLine = in.readLine()) != null && !headerLine.isEmpty()) {
           if (headerLine.toLowerCase().startsWith("user-agent:")) {
             userAgent = headerLine.substring("user-agent:".length()).trim();
           }  
+          if (headerLine.toLowerCase().startsWith("content-length:")) {
+            contentLength = Integer.parseInt(headerLine.split(":")[1].trim());
+          }
         }
 
+        System.out.println(contentLength);
+
         // parse path
-        String path = requestLine.split("\\s+")[1];
+        String[] status = requestLine.split("\\s+");
+        String type = status[0], path = status[1];
         boolean valid = (path.equals("/") || 
                          path.startsWith("/echo/") || 
                          path.startsWith("/user-agent") ||
                          path.startsWith("/files/"));
-        String OK = "HTTP/1.1 200 OK" + CRLF, NF = "HTTP/1.1 404 Not Found" + CRLF;
+        String OK = "HTTP/1.1 200 OK" + CRLF, NF = "HTTP/1.1 404 Not Found" + CRLF, CR = "HTTP/1.1 201 Created" + CRLF;
+
+        System.out.println("ran 1");
+        byte[] bodyBytes = rawIn.readNBytes(contentLength);
+
+        System.out.println("ran 2");
 
         // response construction
         String statusLine = valid ? OK : NF;
@@ -78,20 +92,30 @@ public class Main {
                     dir = args[i + 1];
                 }
             }
-            
+
             String fileName = path.substring("/files/".length());
 
             Path p = Path.of(dir, fileName);
-            System.out.println(p.toString());
-            System.out.println(Files.exists(p));
 
-            if (!Files.exists(p) || fileName.isEmpty()) {
+            if (type.equals("GET")) {
+              if (!Files.exists(p) || fileName.isEmpty()) {
+                headers = CRLF;
+                statusLine = NF;
+              } else {
+                body = Files.readString(p);
+                headers = "Content-Type: application/octet-stream" + CRLF + "Content-Length: " + body.length() + CRLF.repeat(2);
+              }
+            } else if (type.equals("POST")) {
+              Files.createFile(p);
+              String content = new String(bodyBytes, StandardCharsets.UTF_8);
+              System.out.println(content);
+              Files.writeString(p, content);
+
+              // send status 
               headers = CRLF;
-              statusLine = NF;
-            } else {
-              body = Files.readString(p);
-              headers = "Content-Type: application/octet-stream" + CRLF + "Content-Length: " + body.length() + CRLF.repeat(2);
+              statusLine = CR;
             }
+
         } else {
             headers = CRLF; 
         }
