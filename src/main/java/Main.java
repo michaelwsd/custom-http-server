@@ -31,11 +31,10 @@ public class Main {
       try (clientSocket) { // automatically closes socket
         // input and output
         InputStream rawIn = clientSocket.getInputStream();
-        BufferedReader in = new BufferedReader(new InputStreamReader(rawIn)); // convert byte to text
         PrintWriter out = new PrintWriter(clientSocket.getOutputStream(), true); // convert text to byte
 
         // read request line
-        String requestLine = in.readLine();
+        String requestLine = readLine(rawIn);
         System.out.println("Received request: " + requestLine);
 
         if (requestLine == null || requestLine.isEmpty()) {
@@ -47,7 +46,7 @@ public class Main {
         String headerLine;
         String userAgent = "";
         int contentLength = 0;
-        while ((headerLine = in.readLine()) != null && !headerLine.isEmpty()) {
+        while ((headerLine = readLine(rawIn)) != null && !headerLine.isEmpty()) {
           if (headerLine.toLowerCase().startsWith("user-agent:")) {
             userAgent = headerLine.substring("user-agent:".length()).trim();
           }  
@@ -55,8 +54,6 @@ public class Main {
             contentLength = Integer.parseInt(headerLine.split(":")[1].trim());
           }
         }
-
-        System.out.println(contentLength);
 
         // parse path
         String[] status = requestLine.split("\\s+");
@@ -67,10 +64,8 @@ public class Main {
                          path.startsWith("/files/"));
         String OK = "HTTP/1.1 200 OK" + CRLF, NF = "HTTP/1.1 404 Not Found" + CRLF, CR = "HTTP/1.1 201 Created" + CRLF;
 
-        System.out.println("ran 1");
+        // read request body
         byte[] bodyBytes = rawIn.readNBytes(contentLength);
-
-        System.out.println("ran 2");
 
         // response construction
         String statusLine = valid ? OK : NF;
@@ -131,6 +126,29 @@ public class Main {
       } catch (IOException e) {
           System.out.println("Client connection error: " + e.getMessage());
       }
+    }
+
+    /**
+    * Reads a line from the InputStream until CRLF (\r\n).
+    * Returns the line **without CRLF**, or null if the stream ends.
+    */
+    public static String readLine(InputStream in) throws IOException {
+      ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+      int prev = -1, curr;
+
+      while ((curr = in.read()) != -1) {
+          if (prev == '\r' && curr == '\n') {
+              // Remove the previous '\r' from the buffer
+              byte[] lineBytes = buffer.toByteArray();
+              return new String(lineBytes, 0, lineBytes.length - 1, StandardCharsets.UTF_8);
+          }
+          buffer.write(curr);
+          prev = curr;
+      }
+
+      // End of stream
+      if (buffer.size() == 0) return null;
+      return buffer.toString(StandardCharsets.UTF_8);
     }
 
     public static void clearScreen() {
