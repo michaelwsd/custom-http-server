@@ -1,4 +1,4 @@
-# Codecrafters HTTP Server (Java)
+# Custom HTTP Server
 
 This project is a simple HTTP server implemented in Java. It is designed to handle basic HTTP requests and responses, supporting features such as gzip compression, file handling, and multi-threaded client connections.
 
