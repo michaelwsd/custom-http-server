@@ -30,7 +30,7 @@ public class Main {
     public static void handleClient(Socket clientSocket, String[] args) {
       try (clientSocket) { // automatically closes socket
         // input and output
-        InputStream rawIn = clientSocket.getInputStream();
+        InputStream rawIn = clientSocket.getInputStream(); // read one byte at a time
         PrintWriter out = new PrintWriter(clientSocket.getOutputStream(), true); // convert text to byte
 
         // read request line
@@ -45,13 +45,19 @@ public class Main {
         // read headers
         String headerLine;
         String userAgent = "";
+        String acceptEncoding = "";
         int contentLength = 0;
         while ((headerLine = readLine(rawIn)) != null && !headerLine.isEmpty()) {
           if (headerLine.toLowerCase().startsWith("user-agent:")) {
             userAgent = headerLine.substring("user-agent:".length()).trim();
           }  
+          
           if (headerLine.toLowerCase().startsWith("content-length:")) {
             contentLength = Integer.parseInt(headerLine.split(":")[1].trim());
+          }
+
+          if (headerLine.toLowerCase().startsWith("accept-encoding:")) {
+            acceptEncoding = headerLine.substring("accept-encoding:".length()).trim();
           }
         }
 
@@ -69,16 +75,22 @@ public class Main {
 
         // response construction
         String statusLine = valid ? OK : NF;
-        String headers = "Content-Type: text/plain" + CRLF;
+        String headers = "";
+
+        // possible headers
+        String contentTypeText = "Content-Type: text/plain" + CRLF;
+        String contentTypeOctet = "Content-Type: application/octet-stream" + CRLF;
+        String contentEncodingText = (acceptEncoding.equals("gzip") ? "Content-Encoding: gzip" : "") + CRLF;
+
         String body = "";
 
         if (path.startsWith("/echo/")) {
             String[] parts = path.split("/");
             body = parts.length > 2 ? parts[2] : "";
-            headers = "Content-Type: text/plain" + CRLF + "Content-Length: " + body.length() + CRLF.repeat(2);
+            headers = contentTypeText + contentEncodingText + "Content-Length: " + body.length() + CRLF.repeat(2);
         } else if (path.startsWith("/user-agent")) {
             body = userAgent;
-            headers = "Content-Type: text/plain" + CRLF + "Content-Length: " + body.length() + CRLF.repeat(2);
+            headers = contentTypeText + contentEncodingText + "Content-Length: " + body.length() + CRLF.repeat(2);
         } else if (path.startsWith("/files/")) {
             String dir = "";
 
@@ -98,12 +110,11 @@ public class Main {
                 statusLine = NF;
               } else {
                 body = Files.readString(p);
-                headers = "Content-Type: application/octet-stream" + CRLF + "Content-Length: " + body.length() + CRLF.repeat(2);
+                headers = contentTypeOctet + contentEncodingText + "Content-Length: " + body.length() + CRLF.repeat(2);
               }
             } else if (type.equals("POST")) {
               Files.createFile(p);
               String content = new String(bodyBytes, StandardCharsets.UTF_8);
-              System.out.println(content);
               Files.writeString(p, content);
 
               // send status 
@@ -133,15 +144,17 @@ public class Main {
     * Returns the line **without CRLF**, or null if the stream ends.
     */
     public static String readLine(InputStream in) throws IOException {
-      ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-      int prev = -1, curr;
+      ByteArrayOutputStream buffer = new ByteArrayOutputStream(); // temporarily stores all the bytes read from input stream
+      int prev = -1, curr; // track previous and current bytes
 
-      while ((curr = in.read()) != -1) {
-          if (prev == '\r' && curr == '\n') {
-              // Remove the previous '\r' from the buffer
+      while ((curr = in.read()) != -1) { // read one byte at a time
+          if (prev == '\r' && curr == '\n') { // end of a line
               byte[] lineBytes = buffer.toByteArray();
-              return new String(lineBytes, 0, lineBytes.length - 1, StandardCharsets.UTF_8);
+              // return after CRLF is reached
+              return new String(lineBytes, 0, lineBytes.length - 1, StandardCharsets.UTF_8); // exclude the last byte (\r)
           }
+
+          // never collects \r or \n
           buffer.write(curr);
           prev = curr;
       }
