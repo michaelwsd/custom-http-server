@@ -103,19 +103,20 @@ public class Main {
           String contentTypeText = "Content-Type: text/plain" + CRLF;
           String contentTypeOctet = "Content-Type: application/octet-stream" + CRLF;
           String contentEncodingText = acceptEncoding.equals("gzip") ? "Content-Encoding: gzip" + CRLF : "";
+          String connectionClose = "Connection: close" + CRLF;
 
           if (path.startsWith("/echo/")) {
               String[] parts = path.split("/");
               body = parts.length > 2 ? parts[2] : "";
               if (acceptEncoding.equals("gzip")) {
                 compressedBody = GZIPCompression(body);
-                headers = contentTypeText + contentEncodingText + "Content-Length: " + compressedBody.length + CRLF.repeat(2);
+                headers = contentTypeText + contentEncodingText + "Content-Length: " + compressedBody.length + CRLF;
               } else {
-                headers = contentTypeText + contentEncodingText + "Content-Length: " + body.length() + CRLF.repeat(2);
+                headers = contentTypeText + contentEncodingText + "Content-Length: " + body.length() + CRLF;
               }
           } else if (path.startsWith("/user-agent")) {
               body = userAgent;
-              headers = contentTypeText + "Content-Length: " + body.length() + CRLF.repeat(2);
+              headers = contentTypeText + "Content-Length: " + body.length() + CRLF;
           } else if (path.startsWith("/files/")) {
               String dir = "";
 
@@ -131,11 +132,10 @@ public class Main {
 
               if (type.equals("GET")) {
                 if (!Files.exists(p) || fileName.isEmpty()) {
-                  headers = CRLF;
                   statusLine = NF;
                 } else {
                   body = Files.readString(p);
-                  headers = contentTypeOctet + "Content-Length: " + body.length() + CRLF.repeat(2);
+                  headers = contentTypeOctet + "Content-Length: " + body.length() + CRLF;
                 }
               } else if (type.equals("POST")) {
                 Files.createFile(p);
@@ -143,16 +143,15 @@ public class Main {
                 Files.writeString(p, content);
 
                 // send status 
-                headers = CRLF;
                 statusLine = CR;
               }
 
-          } else {
-              headers = CRLF; 
           }
 
           // build response
           String response = statusLine + headers;
+          if (!keepAlive) response += connectionClose;
+          response += CRLF;
 
           // send response
           rawOut.write(response.getBytes());
