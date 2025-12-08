@@ -115,6 +115,7 @@ public class Main {
             String fileName = path.substring("/files/".length());
 
             Path p = Path.of(dir, fileName);
+            
 
             if (type.equals("GET")) {
               if (!Files.exists(p) || fileName.isEmpty()) {
