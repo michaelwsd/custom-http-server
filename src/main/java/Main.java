@@ -4,6 +4,7 @@ import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 
 public class Main {
     private static final int PORT = 4221;
@@ -57,7 +58,12 @@ public class Main {
           }
 
           if (headerLine.toLowerCase().startsWith("accept-encoding:")) {
-            acceptEncoding = headerLine.substring("accept-encoding:".length()).trim();
+            String[] encodings = headerLine.substring("accept-encoding:".length()).trim().split(",");
+            acceptEncoding = Arrays.stream(encodings)
+                                   .map(String::trim)
+                                   .anyMatch(enc -> enc.equalsIgnoreCase("gzip"))
+                                   ? "gzip"
+                                   : "identity";
           }
         }
 
@@ -76,13 +82,12 @@ public class Main {
         // response construction
         String statusLine = valid ? OK : NF;
         String headers = "";
+        String body = "";
 
         // possible headers
         String contentTypeText = "Content-Type: text/plain" + CRLF;
         String contentTypeOctet = "Content-Type: application/octet-stream" + CRLF;
         String contentEncodingText = acceptEncoding.equals("gzip") ? "Content-Encoding: gzip" + CRLF : "";
-
-        String body = "";
 
         if (path.startsWith("/echo/")) {
             String[] parts = path.split("/");
