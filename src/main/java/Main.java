@@ -87,9 +87,9 @@ public class Main {
                           path.startsWith("/files/"));
           String OK = "HTTP/1.1 200 OK" + CRLF, NF = "HTTP/1.1 404 Not Found" + CRLF, CR = "HTTP/1.1 201 Created" + CRLF;
 
-          // read request body
+          // read request body for a POST request
           byte[] bodyBytes = new byte[0];
-          if (contentLength > 0) {
+          if (type.equals("POST") && contentLength > 0) {
             bodyBytes = rawIn.readNBytes(contentLength);
           }
 
@@ -145,7 +145,6 @@ public class Main {
                 // send status 
                 statusLine = CR;
               }
-
           }
 
           // build response
